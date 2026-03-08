@@ -1,19 +1,48 @@
 import { NextResponse } from 'next/server';
-import { NOTION_CONFIG } from '../config';
-import { fetchNotionDatabase, transformQnA } from '../utils';
+import { supabase } from '@/lib/superbase';
+
 export const revalidate = 86400;
+
+type QnARow = {
+  id: number;
+  question: string;
+  answer: string;
+  display_order: number | null;
+};
 
 export async function GET() {
   try {
-    const response = await fetchNotionDatabase(NOTION_CONFIG.DATABASE_IDS.QNA, [
-      { property: 'order', direction: 'ascending' },
-    ]);
+    const { data, error } = await supabase
+      .from('qna')
+      .select(`
+        id,
+        question,
+        answer,
+        display_order
+      `)
+      .order('display_order', { ascending: true })
+      .order('id', { ascending: true });
 
-    const transformedData = transformQnA(response);
+    if (error) {
+      console.error('Supabase qna query error:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch qna data' },
+        { status: 500 }
+      );
+    }
+
+    const transformedData = ((data ?? []) as QnARow[]).map((item) => ({
+      id: item.id,
+      question: item.question,
+      answer: item.answer,
+    }));
 
     return NextResponse.json(transformedData);
   } catch (error) {
-    console.error('Error fetching QnA:', error);
-    return NextResponse.json({ error: 'Failed to fetch QnA data' }, { status: 500 });
+    console.error('Error fetching qna:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch qna data' },
+      { status: 500 }
+    );
   }
 }
